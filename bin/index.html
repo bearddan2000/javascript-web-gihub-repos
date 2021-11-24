@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <title>D3 Lab</title>
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.11.0/css/jquery.dataTables.min.css">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/css/bootstrap.min.css"/>
+    <link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.0.0/css/buttons.dataTables.min.css">
+  </head>
+  <body>
+    <!-- this is header -->
+    <nav class="navbar navbar-inverse">
+        <div class="container">
+            <div class="navbar-header">
+                <a class="navbar-brand" href="/">Github repos</a>
+            </div>
+            <div id="navbar" class="collapse navbar-collapse">
+                <ul class="nav navbar-nav">
+                    <li class="active"><a href="/">Home</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+    <div class="container">
+      <div class="row">
+        <div id="lang-count" class="col-xs-2 col-sm-2 col-md-2"></div>
+        <div class="col-xs-10 col-sm-10 col-md-10">
+          <table id="example" class="display" width="100%">
+            <thead>
+              <!-- <th>id</th> -->
+              <th>name</th>
+              <th>description</th>
+              <th>lang</th>
+              <th>platform</th>
+              <th>build</th>
+              <!-- <th>language</th> -->
+              <th>downloads_url</th>
+            </thead>
+            <tfoot>
+              <!-- <th>id</th> -->
+              <th>name</th>
+              <th>description</th>
+              <th>lang</th>
+              <th>platform</th>
+              <th>build</th>
+              <!-- <th>language</th> -->
+              <th>downloads_url</th>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+    </div>
+    <script src="https://code.jquery.com/jquery-3.5.1.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/js/bootstrap.min.js"></script>
+    <script src="https://cdn.datatables.net/1.11.0/js/jquery.dataTables.min.js" charset="utf-8"></script>
+
+	<script type="text/javascript" language="javascript" src="https://cdn.datatables.net/buttons/2.0.0/js/dataTables.buttons.min.js"></script>
+	<script type="text/javascript" language="javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.3/jszip.min.js"></script>
+	<script type="text/javascript" language="javascript" src="https://cdn.datatables.net/buttons/2.0.0/js/buttons.html5.min.js"></script>
+  <script type="text/javascript">
+    function getCountWrapper(arrCt, d) {
+      return '<span name="'+d+'">'+arrCt[d]+'</span>';
+    }
+    function getLabelWrapper(d) {
+      return '<label for="'+d+'">'+d+'</label>';
+    }
+    function getColumnWrapper(arrCt, d) {
+      let start = '<div class="col-xs-6 col-sm-6 col-md-6">';
+      let end = '</div>';
+      var result = '<div class="row">';
+
+      result += start + getLabelWrapper(d) + end;
+      result += start + getCountWrapper(arrCt, d) + end;
+
+      return result + end;
+    }
+
+    function getRepoCount() {
+        var repos = 0;
+        $.ajax({
+          type: "GET",
+          url: "https://api.github.com/users/bearddan2000",
+          contentType: "application/json",
+          //line added to get ajax response in sync
+          async: false,
+          success: function(data) {
+            repos = data.public_repos;
+          },
+          error: function() {
+            console.log('Error occured loading datatable');
+          }
+        });
+        return Math.ceil(repos / 100);
+    }
+
+    function getView(){
+      var jdata = [];
+      var end = getRepoCount();
+      for(current=1;current<end+1;current++){
+        $.ajax({
+          type: "GET",
+          url: "https://api.github.com/users/bearddan2000/repos?per_page=100&page=" + current,
+          contentType: "application/json",
+          //line added to get ajax response in sync
+          async: false,
+          success: function(data) {
+            $.each(data, function(index, value) {
+              var lang = value.name.split("-")[0];
+              var platform = value.name.split("-")[1];
+              var build = value.name.split("-")[2];
+              jdata.push(
+              {
+                //id: value.id
+                name: value.name
+                , description: value.description
+                , lang: lang
+                , platform: (platform == null ? "-" : platform)
+                , build: (build == null ? "-" : build)
+                //, language: value.language
+                , downloads_url: value.clone_url
+              });
+            });
+          },
+          error: function() {
+            console.log('Error occured loading datatable');
+          }
+        });
+      }
+      return jdata;
+    }
+    $(document).ready(function() {
+        var t = $('#example').DataTable( {
+            data: getView(),
+            columns: [
+                // { data: 'id' },
+                { data: 'name' },
+                { data: 'description' },
+                { data: 'lang' },
+                { data: 'platform' },
+                { data: 'build' },
+                // { data: 'language' },
+                { data: 'downloads_url' }
+            ],
+            dom: 'Bfrtip',
+            buttons: [
+                'copyHtml5',
+                {
+                    text: 'TSV',
+                    extend: 'csvHtml5',
+                    fieldSeparator: '\t',
+                    extension: '.tsv'
+                }
+            ],
+            initComplete: function () {
+              this.api().columns().every( function (index, value) {
+                if(index == 2 || index == 3 || index == 4)
+                {
+                  var column = this;
+                  var select = $('<select><option value=""></option></select>')
+                      .appendTo( $(column.footer()).empty() )
+                      .on( 'change', function () {
+                          var val = $.fn.dataTable.util.escapeRegex(
+                              $(this).val()
+                          );
+
+                          column
+                              .search( val ? '^'+val+'$' : '', true, false )
+                              .draw();
+                      } );
+                  column.data().unique().sort().each( function ( d, j ) {
+                      select.append( '<option value="'+d+'">'+d+'</option>' )
+                  } );
+                  if (index == 2) {
+                    var langCt = [];
+                    column.data().each( function ( d, j ) {
+                      langCt.push(d);
+                    } );
+                    langCt.forEach(el => langCt[el] = 1  + (langCt[el] || 0));
+                    column.data().unique().sort().each( function ( d, j ) {
+                      $('#lang-count').append(getColumnWrapper(langCt, d));
+                    } );
+                  }
+                }
+              } );
+          }
+        } );
+    } );
+  </script>
+  </body>
+</html>
